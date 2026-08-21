@@ -7,9 +7,9 @@ declare global {
 
 function postgresUrl(): string | null {
   const raw =
-    process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
     process.env.DATABASE_URL ||
     "";
   const url = raw.trim();
@@ -32,6 +32,10 @@ export function isPostgresEnabled(): boolean {
 }
 
 export async function getPgPool(): Promise<Pool> {
+  if (process.env.VERCEL) {
+    // Supabase pooler certs can fail verify on some serverless runtimes
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
   const connectionString = postgresUrl();
   if (!connectionString) {
     throw new Error("POSTGRES_URL is not configured");
