@@ -10,47 +10,36 @@ import { customerRepository as mssqlCustomerRepository } from "./mssql/customerR
 import { settingsRepository as mssqlSettingsRepository } from "./mssql/settingsRepository";
 import { tokenRepository as mssqlTokenRepository } from "./mssql/tokenRepository";
 
-function pick<T>(mssql: T, demo: T): T {
-  return isSqlServerEnabled() ? mssql : demo;
+/**
+ * Demo repos are sync; SQL Server repos are async. Callers already `await`
+ * results, so both work at runtime. The public type is the async contract.
+ */
+function pick<T extends object>(mssql: T, demo: object): T {
+  return (isSqlServerEnabled() ? mssql : demo) as T;
+}
+
+function proxyRepo<T extends object>(mssql: T, demo: object): T {
+  return new Proxy(mssql, {
+    get(_t, prop, receiver) {
+      const repo = pick(mssql, demo);
+      const value = Reflect.get(repo, prop, receiver);
+      return typeof value === "function" ? value.bind(repo) : value;
+    },
+  });
 }
 
 /** Always resolve at call time so env changes apply after restart. */
-export const userRepository = new Proxy(mssqlUserRepository, {
-  get(_t, prop, receiver) {
-    const repo = pick(mssqlUserRepository, demoUserRepository);
-    const value = Reflect.get(repo, prop, receiver);
-    return typeof value === "function" ? value.bind(repo) : value;
-  },
-});
-
-export const vehicleRepository = new Proxy(mssqlVehicleRepository, {
-  get(_t, prop, receiver) {
-    const repo = pick(mssqlVehicleRepository, demoVehicleRepository);
-    const value = Reflect.get(repo, prop, receiver);
-    return typeof value === "function" ? value.bind(repo) : value;
-  },
-});
-
-export const customerRepository = new Proxy(mssqlCustomerRepository, {
-  get(_t, prop, receiver) {
-    const repo = pick(mssqlCustomerRepository, demoCustomerRepository);
-    const value = Reflect.get(repo, prop, receiver);
-    return typeof value === "function" ? value.bind(repo) : value;
-  },
-});
-
-export const settingsRepository = new Proxy(mssqlSettingsRepository, {
-  get(_t, prop, receiver) {
-    const repo = pick(mssqlSettingsRepository, demoSettingsRepository);
-    const value = Reflect.get(repo, prop, receiver);
-    return typeof value === "function" ? value.bind(repo) : value;
-  },
-});
-
-export const tokenRepository = new Proxy(mssqlTokenRepository, {
-  get(_t, prop, receiver) {
-    const repo = pick(mssqlTokenRepository, demoTokenRepository);
-    const value = Reflect.get(repo, prop, receiver);
-    return typeof value === "function" ? value.bind(repo) : value;
-  },
-});
+export const userRepository = proxyRepo(mssqlUserRepository, demoUserRepository);
+export const vehicleRepository = proxyRepo(
+  mssqlVehicleRepository,
+  demoVehicleRepository
+);
+export const customerRepository = proxyRepo(
+  mssqlCustomerRepository,
+  demoCustomerRepository
+);
+export const settingsRepository = proxyRepo(
+  mssqlSettingsRepository,
+  demoSettingsRepository
+);
+export const tokenRepository = proxyRepo(mssqlTokenRepository, demoTokenRepository);
