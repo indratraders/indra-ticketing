@@ -80,23 +80,17 @@ npm start
 
 If the app is on a **different machine** than SQL Server, set `DB_SERVER` to that server’s LAN IP or host name and open TCP 1433 between them.
 
-## Vercel
+## Vercel + Supabase
 
-Vercel cannot see the office SQL Server. The live site must use **Supabase Postgres** (or Redis) so tokens are not lost between requests:
+1. Connect Supabase to the Vercel project (sets `POSTGRES_URL`).
+2. In **Supabase → SQL Editor**, run the full script:
 
-1. Connect Supabase to the Vercel project (Storage / Marketplace) — this sets `POSTGRES_URL`
-2. Create the store table once:
+`scripts/setup-supabase.sql`
 
-```bash
-npx vercel env pull .env.local
-npm run db:supabase
-```
+This creates the same tables as SQL Server (`users`, `vehicles`, `tokens`, …) and seeds the Colombo fleet.
+3. Redeploy. `/api/health` should show `"mode":"postgres"` and `vehicleCount: 6`.
 
-Or paste and run `scripts/setup-supabase.sql` in the Supabase SQL editor.
-
-3. Redeploy
-
-`/api/health` should show `"mode":"durable"` and `"backend":"supabase"`. Without that, each serverless instance has its own queue, so tokens appear, disappear, and repeat.
+Office LAN can still use SQL Server via `DB_*` when not on Vercel.
 
 ## Architecture
 

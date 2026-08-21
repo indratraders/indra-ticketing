@@ -33,7 +33,7 @@ function isPrivateOrLocalDbHost(server: string): boolean {
 
 /**
  * SQL Server is used when DB_* credentials are present and reachable.
- * Vercel cannot reach office/LAN SQL Server, so it stays on the durable store.
+ * On Vercel with a LAN/private SQL host, SQL Server stays off so Supabase Postgres is used.
  * Set NEXT_PUBLIC_ENABLE_DEMO_MODE=true to force the in-memory/KV store.
  */
 export function isSqlServerEnabled(): boolean {
@@ -42,6 +42,15 @@ export function isSqlServerEnabled(): boolean {
   if (
     process.env.VERCEL &&
     isPrivateOrLocalDbHost(process.env.DB_SERVER || "")
+  ) {
+    return false;
+  }
+  // Prefer Supabase Postgres on Vercel when POSTGRES_URL is configured
+  if (
+    process.env.VERCEL &&
+    (process.env.POSTGRES_URL ||
+      process.env.POSTGRES_PRISMA_URL ||
+      process.env.DATABASE_URL)
   ) {
     return false;
   }
