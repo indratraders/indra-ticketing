@@ -6,13 +6,20 @@ declare global {
 }
 
 function postgresUrl(): string | null {
-  const url =
+  const raw =
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
     "";
-  return url.trim() || null;
+  const url = raw.trim();
+  if (!url) return null;
+  // Avoid verify-full / channel-binding failures on serverless
+  return url
+    .replace(/([?&])sslmode=[^&]*/gi, "$1sslmode=require")
+    .replace(/([?&])channel_binding=[^&]*/gi, "$1")
+    .replace(/\?&/, "?")
+    .replace(/[?&]$/, "");
 }
 
 /**
@@ -35,9 +42,9 @@ export async function getPgPool(): Promise<Pool> {
       max: 3,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 15_000,
-      ssl: connectionString.includes("localhost")
-        ? undefined
-        : { rejectUnauthorized: false },
+      ssl: {
+        rejectUnauthorized: false,
+      },
     });
   }
   return globalThis.__indraPgPool;
@@ -65,19 +72,17 @@ export async function withPgTransaction<T>(
   }
 }
 
-export async function pgQuery<T extends Record<string, unknown> = Record<string, unknown>>(
-  text: string,
-  params: unknown[] = []
-): Promise<T[]> {
+export async function pgQuery<
+  T extends Record<string, unknown> = Record<string, unknown>,
+>(text: string, params: unknown[] = []): Promise<T[]> {
   const pool = await getPgPool();
   const result = await pool.query(text, params);
   return result.rows as T[];
 }
 
-export async function pgQueryOne<T extends Record<string, unknown> = Record<string, unknown>>(
-  text: string,
-  params: unknown[] = []
-): Promise<T | null> {
+export async function pgQueryOne<
+  T extends Record<string, unknown> = Record<string, unknown>,
+>(text: string, params: unknown[] = []): Promise<T | null> {
   const rows = await pgQuery<T>(text, params);
   return rows[0] ?? null;
 }
