@@ -72,7 +72,7 @@ async function main() {
     ["veh_raptor", "Ford", "Raptor", null],
     ["veh_vezel", "Honda", "Vezel", null],
     ["veh_taisor", "Toyota", "Taisor", null],
-    ["veh_sonet", "Kia", "Sonet", null],
+    ["veh_wagonr", "Suzuki", "Wagon R", null],
     ["veh_raize", "Toyota", "Raize", null],
     ["veh_dayz", "Nissan", "Dayz", null],
   ];
@@ -81,8 +81,14 @@ async function main() {
     UPDATE dbo.vehicles
     SET active = 0, updatedAt = SYSUTCDATETIME()
     WHERE id NOT IN (
-      'veh_raptor','veh_vezel','veh_taisor','veh_sonet','veh_raize','veh_dayz'
+      'veh_raptor','veh_vezel','veh_taisor','veh_wagonr','veh_raize','veh_dayz','veh_sonet'
     )
+  `);
+
+  await pool.request().query(`
+    UPDATE dbo.vehicles
+    SET brand = N'Suzuki', model = N'Wagon R', active = 1, status = N'AVAILABLE', updatedAt = SYSUTCDATETIME()
+    WHERE id = N'veh_sonet'
   `);
 
   for (const [id, brand, model, reg] of vehicles) {
@@ -127,7 +133,7 @@ async function main() {
 
   console.log("Seed complete — Colombo vehicles + officers");
   console.log(
-    "Vehicles: Ford Raptor, Honda Vezel, Toyota Taisor, Kia Sonet, Toyota Raize, Nissan Dayz"
+    "Vehicles: Ford Raptor, Honda Vezel, Toyota Taisor, Suzuki Wagon R, Toyota Raize, Nissan Dayz"
   );
   console.log(
     "Officers: Krish, Umesh, Imithiyaz, Buwaneka, Omith (password: demo1234)"

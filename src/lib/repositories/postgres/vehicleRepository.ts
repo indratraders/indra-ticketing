@@ -4,8 +4,52 @@ import { nowISO } from "@/lib/utils/date";
 import type { Vehicle, VehicleStatus } from "@/types";
 import { mapVehicle } from "../mssql/mappers";
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __indraFleetEnsured: boolean | undefined;
+}
+
+const FLEET: Array<[string, string, string]> = [
+  ["veh_raptor", "Ford", "Raptor"],
+  ["veh_vezel", "Honda", "Vezel"],
+  ["veh_taisor", "Toyota", "Taisor"],
+  ["veh_wagonr", "Suzuki", "Wagon R"],
+  ["veh_raize", "Toyota", "Raize"],
+  ["veh_dayz", "Nissan", "Dayz"],
+];
+
+async function ensureFleet(): Promise<void> {
+  if (globalThis.__indraFleetEnsured) return;
+  try {
+    for (const [id, brand, model] of FLEET) {
+      await pgQuery(
+        `INSERT INTO public.vehicles
+          (id, brand, model, "registrationNumber", status, active, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, NULL, 'AVAILABLE', true, now(), now())
+         ON CONFLICT (id) DO UPDATE SET
+           brand = EXCLUDED.brand,
+           model = EXCLUDED.model,
+           status = 'AVAILABLE',
+           active = true,
+           "updatedAt" = now()`,
+        [id, brand, model]
+      );
+    }
+    // Legacy Kia Sonet → Suzuki Wagon R
+    await pgQuery(
+      `UPDATE public.vehicles
+       SET brand = 'Suzuki', model = 'Wagon R', active = false, status = 'AVAILABLE', "updatedAt" = now()
+       WHERE id = 'veh_sonet'`
+    );
+    globalThis.__indraFleetEnsured = true;
+  } catch {
+    // Table may not exist yet — leave for setup SQL
+  }
+}
+
 export const vehicleRepository = {
   async list(activeOnly = false): Promise<Vehicle[]> {
+    await ensureFleet();
     const rows = activeOnly
       ? await pgQuery(
           `SELECT * FROM public.vehicles WHERE active = true ORDER BY brand, model`
@@ -15,6 +59,7 @@ export const vehicleRepository = {
   },
 
   async findById(id: string): Promise<Vehicle | null> {
+    await ensureFleet();
     const row = await pgQueryOne(
       `SELECT * FROM public.vehicles WHERE id = $1 LIMIT 1`,
       [id]
@@ -23,6 +68,7 @@ export const vehicleRepository = {
   },
 
   async listAvailable(): Promise<Vehicle[]> {
+    await ensureFleet();
     const rows = await pgQuery(
       `SELECT * FROM public.vehicles
        WHERE active = true

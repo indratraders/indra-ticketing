@@ -173,7 +173,7 @@ VALUES
   ('veh_raptor', 'Ford', 'Raptor', NULL, 'AVAILABLE', true),
   ('veh_vezel', 'Honda', 'Vezel', NULL, 'AVAILABLE', true),
   ('veh_taisor', 'Toyota', 'Taisor', NULL, 'AVAILABLE', true),
-  ('veh_sonet', 'Kia', 'Sonet', NULL, 'AVAILABLE', true),
+  ('veh_wagonr', 'Suzuki', 'Wagon R', NULL, 'AVAILABLE', true),
   ('veh_raize', 'Toyota', 'Raize', NULL, 'AVAILABLE', true),
   ('veh_dayz', 'Nissan', 'Dayz', NULL, 'AVAILABLE', true)
 ON CONFLICT (id) DO UPDATE SET
@@ -182,6 +182,16 @@ ON CONFLICT (id) DO UPDATE SET
   status = 'AVAILABLE',
   active = true,
   "updatedAt" = now();
+
+-- Rename legacy Kia Sonet → Suzuki Wagon R (keep old id for existing tokens)
+UPDATE public.vehicles
+SET brand = 'Suzuki', model = 'Wagon R', active = true, status = 'AVAILABLE', "updatedAt" = now()
+WHERE id = 'veh_sonet';
+
+-- Prefer the new id going forward; deactivate duplicate if both exist
+UPDATE public.vehicles SET active = false, "updatedAt" = now()
+WHERE id = 'veh_sonet'
+  AND EXISTS (SELECT 1 FROM public.vehicles WHERE id = 'veh_wagonr');
 
 INSERT INTO public.settings (
   id, "companyName", "tokenPrefix", "startingTokenNumber", "maxTokenNumber",

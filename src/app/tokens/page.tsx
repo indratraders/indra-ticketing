@@ -260,11 +260,23 @@ function IssueTokenDialog({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     void fetch("/api/vehicles?available=true")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setVehicles(json.data);
+      .then(async (r) => {
+        const json = await r.json();
+        if (cancelled) return;
+        if (json.success && Array.isArray(json.data)) {
+          setVehicles(json.data);
+          return;
+        }
+        toast.error(json.error || "Could not load vehicles");
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not load vehicles");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const vehicleOptions = useMemo(

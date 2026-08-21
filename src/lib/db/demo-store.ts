@@ -165,9 +165,9 @@ export function createSeedStore(): DemoStore {
       updatedAt: now,
     },
     {
-      id: "veh_sonet",
-      brand: "Kia",
-      model: "Sonet",
+      id: "veh_wagonr",
+      brand: "Suzuki",
+      model: "Wagon R",
       registrationNumber: null,
       status: "AVAILABLE",
       active: true,
