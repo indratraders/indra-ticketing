@@ -82,13 +82,21 @@ If the app is on a **different machine** than SQL Server, set `DB_SERVER` to tha
 
 ## Vercel
 
-Vercel cannot see the office SQL Server. The live site must use **Vercel KV** (Redis) so tokens are not lost between requests:
+Vercel cannot see the office SQL Server. The live site must use **Supabase Postgres** (or Redis) so tokens are not lost between requests:
 
-1. Vercel Dashboard → **Storage** → **Create Database** → **KV**
-2. Connect it to the `indra-ticketing` project (Production)
+1. Connect Supabase to the Vercel project (Storage / Marketplace) — this sets `POSTGRES_URL`
+2. Create the store table once:
+
+```bash
+npx vercel env pull .env.local
+npm run db:supabase
+```
+
+Or paste and run `scripts/setup-supabase.sql` in the Supabase SQL editor.
+
 3. Redeploy
 
-`/api/health` should then show `"mode":"durable"`. Without KV, each serverless instance has its own queue, so tokens appear, disappear, and repeat.
+`/api/health` should show `"mode":"durable"` and `"backend":"supabase"`. Without that, each serverless instance has its own queue, so tokens appear, disappear, and repeat.
 
 ## Architecture
 

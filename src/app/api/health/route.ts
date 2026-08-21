@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { isDurableStoreEnabled } from "@/lib/db/durable-store";
+import {
+  durableStoreBackend,
+  isDurableStoreEnabled,
+} from "@/lib/db/durable-store";
 import { getSqlPool, isSqlServerEnabled } from "@/lib/db/sqlserver";
 
 export const dynamic = "force-dynamic";
@@ -7,18 +10,23 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const sqlEnabled = isSqlServerEnabled();
   const durable = isDurableStoreEnabled();
+  const backend = durableStoreBackend();
 
   if (!sqlEnabled) {
+    const ok = durable || !process.env.VERCEL;
     return NextResponse.json({
-      ok: durable || !process.env.VERCEL,
+      ok,
       mode: durable ? "durable" : "demo",
+      backend,
       database: null,
       durable,
       message: durable
-        ? "Shared Redis store is enabled. Tokens persist across Vercel instances."
+        ? backend === "supabase" || backend === "supabase-rest"
+          ? "Shared Supabase store is enabled. Tokens persist across Vercel instances."
+          : "Shared Redis store is enabled. Tokens persist across Vercel instances."
         : process.env.VERCEL
-          ? "Vercel is using in-memory storage. Add KV_REST_API_URL and KV_REST_API_TOKEN (Vercel Storage → KV) or tokens will reset."
-          : "In-memory store (local). Set DB_* for SQL Server, or KV_* for a shared store.",
+          ? "Vercel is using in-memory storage. Connect Supabase (POSTGRES_URL / SUPABASE_URL) or tokens will reset."
+          : "In-memory store (local). Set DB_* for SQL Server, or Supabase for a shared store.",
     });
   }
 
@@ -44,9 +52,11 @@ export async function GET() {
       userCount: row.userCount,
       settingsReady: row.settingsCount > 0,
       durable: false,
+      backend: null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "SQL Server connection failed";
+    const message =
+      error instanceof Error ? error.message : "SQL Server connection failed";
     return NextResponse.json(
       {
         ok: false,
@@ -55,6 +65,7 @@ export async function GET() {
         database: process.env.DB_NAME ?? null,
         error: message,
         durable,
+        backend,
       },
       { status: 503 }
     );
