@@ -60,6 +60,8 @@ export const CANCEL_REASONS = [
 ] as const;
 
 export const POLL_INTERVAL_MS = 2000;
+/** Slower polling on Vercel to avoid exhausting Supabase connection pools */
+export const VERCEL_POLL_INTERVAL_MS = 8000;
 
 /** Max simultaneous test drives — matches Colombo fleet size */
 export const DEFAULT_MAX_CONCURRENT_ACTIVE = 6;

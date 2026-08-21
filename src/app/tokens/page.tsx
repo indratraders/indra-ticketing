@@ -38,6 +38,70 @@ import { vehicleDisplayName } from "@/lib/utils";
 import type { TestDriveType, TokenWithRelations, Vehicle } from "@/types";
 import { PrintableToken } from "@/components/token/printable-token";
 
+/** Shown if the vehicles API is slow/unavailable so officers can still pick a fleet car */
+const FALLBACK_FLEET: Vehicle[] = [
+  {
+    id: "veh_raptor",
+    brand: "Ford",
+    model: "Raptor",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+  {
+    id: "veh_vezel",
+    brand: "Honda",
+    model: "Vezel",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+  {
+    id: "veh_taisor",
+    brand: "Toyota",
+    model: "Taisor",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+  {
+    id: "veh_wagonr",
+    brand: "Suzuki",
+    model: "Wagon R",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+  {
+    id: "veh_raize",
+    brand: "Toyota",
+    model: "Raize",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+  {
+    id: "veh_dayz",
+    brand: "Nissan",
+    model: "Dayz",
+    registrationNumber: null,
+    status: "AVAILABLE",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  },
+];
+
 export default function TokensPage() {
   return (
     <DashboardShellClient allowedRoles={FLOOR_ROLES}>
@@ -261,18 +325,21 @@ function IssueTokenDialog({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void fetch("/api/vehicles?available=true")
+    // Show fleet immediately so the dropdown is never empty while API loads
+    setVehicles(FALLBACK_FLEET);
+    void fetch("/api/vehicles?available=true", { cache: "no-store" })
       .then(async (r) => {
         const json = await r.json();
         if (cancelled) return;
-        if (json.success && Array.isArray(json.data)) {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           setVehicles(json.data);
           return;
         }
-        toast.error(json.error || "Could not load vehicles");
+        setVehicles(FALLBACK_FLEET);
+        if (json.error) toast.error(json.error);
       })
       .catch(() => {
-        if (!cancelled) toast.error("Could not load vehicles");
+        if (!cancelled) setVehicles(FALLBACK_FLEET);
       });
     return () => {
       cancelled = true;

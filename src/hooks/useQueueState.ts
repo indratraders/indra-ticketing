@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { POLL_INTERVAL_MS } from "@/lib/constants";
+import { POLL_INTERVAL_MS, VERCEL_POLL_INTERVAL_MS } from "@/lib/constants";
 import type { DashboardStats, QueueSnapshot, RealtimeEvent } from "@/types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers || {}),
@@ -17,6 +18,17 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(json.error || "Request failed");
   }
   return json.data as T;
+}
+
+function defaultPollMs(): number {
+  if (
+    typeof window !== "undefined" &&
+    (process.env.NEXT_PUBLIC_VERCEL_ENV ||
+      /\.vercel\.app$/i.test(window.location.hostname))
+  ) {
+    return VERCEL_POLL_INTERVAL_MS;
+  }
+  return POLL_INTERVAL_MS;
 }
 
 /**
@@ -74,7 +86,10 @@ export function useQueueState(options?: {
     let es: EventSource | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let usePolling = false;
-    const onVercel = Boolean(process.env.NEXT_PUBLIC_VERCEL_ENV);
+    const onVercel =
+      Boolean(process.env.NEXT_PUBLIC_VERCEL_ENV) ||
+      (typeof window !== "undefined" &&
+        /\.vercel\.app$/i.test(window.location.hostname));
 
     const startPolling = () => {
       if (pollTimer) return;
@@ -82,7 +97,7 @@ export function useQueueState(options?: {
       setConnected(false);
       pollTimer = setInterval(() => {
         void refresh();
-      }, options?.pollIntervalMs ?? POLL_INTERVAL_MS);
+      }, options?.pollIntervalMs ?? defaultPollMs());
     };
 
     if (onVercel) {
@@ -133,7 +148,7 @@ export function useQueueState(options?: {
       if (!usePolling) {
         pollTimer = setInterval(() => {
           void refresh();
-        }, Math.max(options?.pollIntervalMs ?? POLL_INTERVAL_MS, 5000));
+        }, Math.max(options?.pollIntervalMs ?? defaultPollMs(), 5000));
       }
     }
 

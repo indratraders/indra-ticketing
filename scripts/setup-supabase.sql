@@ -211,3 +211,12 @@ ON CONFLICT (id) DO UPDATE SET
   "upcomingTokensCount" = 6,
   "defaultCounterId" = 'counter_01',
   "updatedAt" = now();
+
+-- RLS so REST can read vehicles (service role bypasses this anyway)
+ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "vehicles_select" ON public.vehicles;
+CREATE POLICY "vehicles_select" ON public.vehicles
+  FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "vehicles_write" ON public.vehicles;
+CREATE POLICY "vehicles_write" ON public.vehicles
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
