@@ -1,0 +1,203 @@
+// Prisma schema prepared for MySQL integration.
+// DEMO MODE currently uses in-memory repositories in /src/lib/repositories.
+// When DATABASE_URL is available:
+// 1. npm install prisma @prisma/client
+// 2. npx prisma migrate dev
+// 3. Swap repository implementations to use PrismaClient
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  TOKEN_OFFICER
+  QUEUE_OFFICER
+}
+
+enum TokenStatus {
+  WAITING
+  CALLED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELLED
+  NO_SHOW
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  IN_TEST_DRIVE
+  MAINTENANCE
+  UNAVAILABLE
+}
+
+enum TestDriveType {
+  NORMAL
+  VIP
+  SCHEDULED
+  WALK_IN
+}
+
+enum TokenEventType {
+  ISSUED
+  CALLED
+  STARTED
+  COMPLETED
+  SKIPPED
+  CANCELLED
+  RECALLED
+  NO_SHOW
+  STATUS_CHANGED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  issuedTokens Token[] @relation("IssuedBy")
+  calledTokens Token[] @relation("CalledBy")
+  events       TokenEvent[]
+}
+
+model Vehicle {
+  id                 String        @id @default(cuid())
+  brand              String
+  model              String
+  registrationNumber String?
+  status             VehicleStatus @default(AVAILABLE)
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  tokens             Token[]
+
+  @@index([status])
+  @@index([active])
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  name          String
+  contactNumber String
+  nic           String?
+  email         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tokens        Token[]
+
+  @@index([contactNumber])
+}
+
+model Counter {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tokens    Token[]
+}
+
+model Token {
+  id                  String        @id @default(cuid())
+  tokenNumber         String
+  tokenPrefix         String        @default("")
+  sequenceNumber      Int
+  customerCode        String        @unique
+  businessDate        DateTime      @db.Date
+  customerId          String
+  vehicleId           String
+  testDriveType       TestDriveType
+  status              TokenStatus   @default(WAITING)
+  counterId           String?
+  issuedBy            String
+  calledBy            String?
+  notes               String?       @db.Text
+  skipReason          String?
+  cancellationReason  String?
+  cancelledBy         String?
+  issuedAt            DateTime      @default(now())
+  calledAt            DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  skippedAt           DateTime?
+  cancelledAt         DateTime?
+  recallCount         Int           @default(0)
+  lastRecalledAt      DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id])
+  counter  Counter? @relation(fields: [counterId], references: [id])
+  issuer   User     @relation("IssuedBy", fields: [issuedBy], references: [id])
+  caller   User?    @relation("CalledBy", fields: [calledBy], references: [id])
+  events   TokenEvent[]
+
+  @@index([tokenNumber])
+  @@index([customerCode])
+  @@index([status])
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([counterId])
+  @@index([businessDate, status])
+}
+
+model TokenEvent {
+  id          String         @id @default(cuid())
+  tokenId     String
+  eventType   TokenEventType
+  fromStatus  TokenStatus?
+  toStatus    TokenStatus?
+  performedBy String?
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  token     Token @relation(fields: [tokenId], references: [id])
+  performer User? @relation(fields: [performedBy], references: [id])
+
+  @@index([tokenId])
+  @@index([createdAt])
+}
+
+model DailySequence {
+  id           String   @id @default(cuid())
+  businessDate DateTime @db.Date
+  prefix       String
+  lastSequence Int      @default(0)
+  counterId    String?
+
+  @@unique([businessDate, prefix])
+}
+
+model Setting {
+  id                        String   @id @default(cuid())
+  companyName               String
+  tokenPrefix               String   @default("")
+  startingTokenNumber       Int      @default(1)
+  maxTokenNumber            Int      @default(50)
+  customerCodePrefix        String   @default("C")
+  defaultCounterId          String
+  audioNotificationEnabled  Boolean  @default(true)
+  textToSpeechEnabled       Boolean  @default(true)
+  displayMode               String   @default("LARGE")
+  queueBehavior             String   @default("FIFO")
+  autoCompleteOnNext        Boolean  @default(false)
+  upcomingTokensCount       Int      @default(3)
+  displayShowCustomerName   Boolean  @default(true)
+  timezone                  String   @default("Asia/Colombo")
+  updatedAt                 DateTime @updatedAt
+}

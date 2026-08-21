@@ -1,26 +1,192 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f5f8;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --surface-muted: #f1f5f9;
+  --sidebar: #0b1220;
+  --brand-primary: #0c4a6e;
+  --brand-primary-hover: #075985;
+  --brand-gold: #c5a46e;
+  --brand-gold-soft: #e8d5a3;
+  --brand-accent: #1e3a5f;
+  --danger: #be123c;
+  --danger-hover: #9f1239;
+  --success: #047857;
+  --success-hover: #065f46;
+  --warning: #f59e0b;
+  --warning-fg: #78350f;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.04);
+  --display-bg: #07111f;
+  --display-panel: #0d1b2e;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-token,
+  .print-token * {
+    visibility: visible;
+  }
+
+  .print-token {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    padding: 8mm;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+@keyframes token-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+    filter: brightness(1.5);
+  }
+  35% {
+    transform: scale(1.06);
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes token-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(197, 164, 110, 0);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 70px 10px rgba(197, 164, 110, 0.45);
+    border-color: rgba(197, 164, 110, 0.7);
+  }
+}
+
+@keyframes call-overlay-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes call-overlay-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes call-token-enter {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+    filter: blur(8px);
+  }
+  55% {
+    transform: scale(1.08);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes call-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 20px rgba(197, 164, 110, 0.25);
+  }
+  50% {
+    text-shadow: 0 0 48px rgba(197, 164, 110, 0.75),
+      0 0 90px rgba(12, 74, 110, 0.45);
+  }
+}
+
+.token-call-animation {
+  animation: token-pulse 0.9s ease-out, token-flash 1.2s ease-in-out 3;
+}
+
+.call-overlay-enter {
+  animation: call-overlay-in 0.35s ease-out forwards;
+}
+
+.call-overlay-exit {
+  animation: call-overlay-out 0.45s ease-in forwards;
+}
+
+.call-token-pop {
+  animation: call-token-enter 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    call-glow 1.2s ease-in-out 2;
+}
+
+.display-grid-bg {
+  background-image:
+    radial-gradient(ellipse at top, rgba(197, 164, 110, 0.12), transparent 55%),
+    linear-gradient(180deg, #07111f 0%, #0a1628 50%, #07111f 100%);
+}
+
+.app-shell-bg {
+  background: var(--background);
 }
