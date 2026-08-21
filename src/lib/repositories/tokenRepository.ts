@@ -36,6 +36,8 @@ async function withTransaction<T>(fn: () => T | Promise<T>): Promise<T> {
   }
 }
 
+const IN_USE_STATUSES: TokenStatus[] = ["WAITING", "CALLED", "IN_PROGRESS"];
+
 function nextQueueNumber(settings: {
   startingTokenNumber: number;
   maxTokenNumber: number;
@@ -43,12 +45,27 @@ function nextQueueNumber(settings: {
   const store = getStore();
   const start = Math.max(1, settings.startingTokenNumber || 1);
   const max = Math.max(start, settings.maxTokenNumber || 50);
-  const last = store.lastQueueSequence;
+  const today = getBusinessDate();
+  const inUse = new Set(
+    store.tokens
+      .filter(
+        (token) =>
+          token.businessDate === today && IN_USE_STATUSES.includes(token.status)
+      )
+      .map((token) => token.sequenceNumber)
+  );
 
-  if (last < start || last >= max) {
-    return start;
+  let candidate = store.lastQueueSequence;
+  const span = max - start + 1;
+  for (let i = 0; i < span; i++) {
+    candidate = candidate < start || candidate >= max ? start : candidate + 1;
+    if (!inUse.has(candidate)) {
+      return candidate;
+    }
   }
-  return last + 1;
+  throw new Error(
+    "All token numbers in the current cycle are already in use. Complete or cancel a drive first."
+  );
 }
 
 function nextCustomerCode(prefix: string): string {

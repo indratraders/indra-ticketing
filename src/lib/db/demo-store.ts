@@ -45,7 +45,7 @@ export function createEntityId(prefix: string): string {
   return createId(prefix);
 }
 
-function seedStore(): DemoStore {
+export function createSeedStore(): DemoStore {
   const now = nowISO();
   const passwordHash = bcrypt.hashSync(DEMO_PASSWORD, 10);
   const businessDate = getBusinessDate();
@@ -239,9 +239,14 @@ function seedStore(): DemoStore {
   };
 }
 
+export function replaceStore(store: DemoStore): DemoStore {
+  globalThis.__indraDemoStore = store;
+  return store;
+}
+
 export function getStore(): DemoStore {
   if (!globalThis.__indraDemoStore) {
-    globalThis.__indraDemoStore = seedStore();
+    globalThis.__indraDemoStore = createSeedStore();
     return globalThis.__indraDemoStore;
   }
 
@@ -252,7 +257,7 @@ export function getStore(): DemoStore {
     typeof store.settings.maxTokenNumber !== "number" ||
     !store.settings.customerCodePrefix
   ) {
-    globalThis.__indraDemoStore = seedStore();
+    globalThis.__indraDemoStore = createSeedStore();
   }
 
   return globalThis.__indraDemoStore;
@@ -283,7 +288,7 @@ export function broadcastRealtime(event: unknown): void {
 }
 
 export function resetDemoStore(): DemoStore {
-  globalThis.__indraDemoStore = seedStore();
+  globalThis.__indraDemoStore = createSeedStore();
   bumpStoreVersion();
   broadcastRealtime({
     type: "QUEUE_UPDATED",

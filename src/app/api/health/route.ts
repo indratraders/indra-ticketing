@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
+import { isDurableStoreEnabled } from "@/lib/db/durable-store";
 import { getSqlPool, isSqlServerEnabled } from "@/lib/db/sqlserver";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const sqlEnabled = isSqlServerEnabled();
+  const durable = isDurableStoreEnabled();
 
   if (!sqlEnabled) {
     return NextResponse.json({
-      ok: true,
-      mode: "demo",
+      ok: durable || !process.env.VERCEL,
+      mode: durable ? "durable" : "demo",
       database: null,
-      message: "In-memory demo store. Set NEXT_PUBLIC_ENABLE_DEMO_MODE=false and DB_* to use SQL Server.",
+      durable,
+      message: durable
+        ? "Shared Redis store is enabled. Tokens persist across Vercel instances."
+        : process.env.VERCEL
+          ? "Vercel is using in-memory storage. Add KV_REST_API_URL and KV_REST_API_TOKEN (Vercel Storage → KV) or tokens will reset."
+          : "In-memory store (local). Set DB_* for SQL Server, or KV_* for a shared store.",
     });
   }
 
@@ -36,6 +43,7 @@ export async function GET() {
       database: row.databaseName,
       userCount: row.userCount,
       settingsReady: row.settingsCount > 0,
+      durable: false,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "SQL Server connection failed";
@@ -46,6 +54,7 @@ export async function GET() {
         server: process.env.DB_SERVER ?? null,
         database: process.env.DB_NAME ?? null,
         error: message,
+        durable,
       },
       { status: 503 }
     );

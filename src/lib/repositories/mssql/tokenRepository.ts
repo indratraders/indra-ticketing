@@ -64,14 +64,22 @@ async function withTransaction<T>(fn: () => T | Promise<T>): Promise<T> {
 function nextQueueNumber(
   last: number,
   startingTokenNumber: number,
-  maxTokenNumber: number
+  maxTokenNumber: number,
+  inUse: Set<number> = new Set()
 ): number {
   const start = Math.max(1, startingTokenNumber || 1);
   const max = Math.max(start, maxTokenNumber || 50);
-  if (last < start || last >= max) {
-    return start;
+  let candidate = last;
+  const span = max - start + 1;
+  for (let i = 0; i < span; i++) {
+    candidate = candidate < start || candidate >= max ? start : candidate + 1;
+    if (!inUse.has(candidate)) {
+      return candidate;
+    }
   }
-  return last + 1;
+  throw new Error(
+    "All token numbers in the current cycle are already in use. Complete or cancel a drive first."
+  );
 }
 
 async function enrichById(
@@ -455,12 +463,25 @@ export const tokenRepository = {
         Number(settingsRow.lastCustomerCodeSequence) || 0;
       const prefix = String(settingsRow.customerCodePrefix || "C");
       const defaultCounterId = String(settingsRow.defaultCounterId);
+      const businessDate = getBusinessDate();
 
-      const nextSequence = nextQueueNumber(lastQueue, start, max);
+      const inUseResult = await req()
+        .input("businessDate", sql.Date, businessDate)
+        .query(
+          `SELECT sequenceNumber FROM dbo.tokens
+           WHERE businessDate = @businessDate
+             AND status IN (N'WAITING', N'CALLED', N'IN_PROGRESS')`
+        );
+      const inUse = new Set<number>(
+        (inUseResult.recordset as Array<{ sequenceNumber: number }>).map(
+          (row) => Number(row.sequenceNumber)
+        )
+      );
+
+      const nextSequence = nextQueueNumber(lastQueue, start, max, inUse);
       const nextCustomerSeq = lastCustomerCode + 1;
       const tokenNumber = formatDisplayToken(nextSequence);
       const customerCode = formatCustomerCode(prefix, nextCustomerSeq);
-      const businessDate = getBusinessDate();
       const counterId = input.counterId ?? defaultCounterId;
       const now = new Date();
       const id = createEntityId("tok");

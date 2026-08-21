@@ -1,4 +1,5 @@
 import { isSqlServerEnabled } from "@/lib/db/sqlserver";
+import { runWithDurableStore } from "@/lib/db/durable-store";
 import { userRepository as demoUserRepository } from "./userRepository";
 import { vehicleRepository as demoVehicleRepository } from "./vehicleRepository";
 import { customerRepository as demoCustomerRepository } from "./customerRepository";
@@ -18,12 +19,19 @@ function pick<T extends object>(mssql: T, demo: object): T {
   return (isSqlServerEnabled() ? mssql : demo) as T;
 }
 
+const MEMORY_ONLY = new Set(["getStoreVersion", "getRecallVersion"]);
+
 function proxyRepo<T extends object>(mssql: T, demo: object): T {
   return new Proxy(mssql, {
     get(_t, prop, receiver) {
       const repo = pick(mssql, demo);
       const value = Reflect.get(repo, prop, receiver);
-      return typeof value === "function" ? value.bind(repo) : value;
+      if (typeof value !== "function") return value;
+      const bound = value.bind(repo) as (...args: unknown[]) => unknown;
+      if (isSqlServerEnabled() || MEMORY_ONLY.has(String(prop))) {
+        return bound;
+      }
+      return (...args: unknown[]) => runWithDurableStore(() => bound(...args));
     },
   });
 }

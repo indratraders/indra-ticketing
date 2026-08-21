@@ -180,6 +180,8 @@ export interface QueueSnapshot {
   activeCount: number;
   maxConcurrentActive: number;
   recallVersion: number;
+  /** Shared store revision — ignore older snapshots from blank serverless instances */
+  version: number;
   updatedAt: string;
 }
 

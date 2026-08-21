@@ -43,7 +43,12 @@ export function useQueueState(options?: {
   const refresh = useCallback(async () => {
     try {
       const data = await fetchJson<QueueSnapshot>(`/api/queue${counterQuery}`);
-      setSnapshot(data);
+      setSnapshot((prev) => {
+        if (prev && typeof data.version === "number" && data.version < prev.version) {
+          return prev;
+        }
+        return data;
+      });
       setError(null);
       if (options?.enableStats) {
         try {
@@ -64,11 +69,12 @@ export function useQueueState(options?: {
     void refresh();
   }, [refresh]);
 
-  // Realtime via SSE
+  // Realtime via SSE (LAN) or polling (Vercel serverless)
   useEffect(() => {
     let es: EventSource | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let usePolling = false;
+    const onVercel = Boolean(process.env.NEXT_PUBLIC_VERCEL_ENV);
 
     const startPolling = () => {
       if (pollTimer) return;
@@ -79,53 +85,56 @@ export function useQueueState(options?: {
       }, options?.pollIntervalMs ?? POLL_INTERVAL_MS);
     };
 
-    try {
-      es = new EventSource("/api/realtime");
-      es.onopen = () => {
-        setConnected(true);
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-      };
-      es.onmessage = (msg) => {
-        try {
-          const event = JSON.parse(msg.data) as RealtimeEvent;
-          setLastEvent(event);
-          if (
-            event.type === "QUEUE_UPDATED" ||
-            event.type === "TOKEN_RECALLED" ||
-            event.type === "SETTINGS_UPDATED"
-          ) {
-            void refresh();
+    if (onVercel) {
+      startPolling();
+    } else {
+      try {
+        es = new EventSource("/api/realtime");
+        es.onopen = () => {
+          setConnected(true);
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
           }
-          if (event.type === "HEARTBEAT") {
-            const payload = event.payload as { version?: number };
+        };
+        es.onmessage = (msg) => {
+          try {
+            const event = JSON.parse(msg.data) as RealtimeEvent;
+            setLastEvent(event);
             if (
-              typeof payload.version === "number" &&
-              payload.version !== versionRef.current
+              event.type === "QUEUE_UPDATED" ||
+              event.type === "TOKEN_RECALLED" ||
+              event.type === "SETTINGS_UPDATED"
             ) {
-              versionRef.current = payload.version;
               void refresh();
             }
+            if (event.type === "HEARTBEAT") {
+              const payload = event.payload as { version?: number };
+              if (
+                typeof payload.version === "number" &&
+                payload.version !== versionRef.current
+              ) {
+                versionRef.current = payload.version;
+                void refresh();
+              }
+            }
+          } catch {
+            // ignore malformed
           }
-        } catch {
-          // ignore malformed
-        }
-      };
-      es.onerror = () => {
-        es?.close();
+        };
+        es.onerror = () => {
+          es?.close();
+          startPolling();
+        };
+      } catch {
         startPolling();
-      };
-    } catch {
-      startPolling();
-    }
+      }
 
-    // Always keep a light polling safety net even with SSE
-    if (!usePolling) {
-      pollTimer = setInterval(() => {
-        void refresh();
-      }, Math.max(options?.pollIntervalMs ?? POLL_INTERVAL_MS, 5000));
+      if (!usePolling) {
+        pollTimer = setInterval(() => {
+          void refresh();
+        }, Math.max(options?.pollIntervalMs ?? POLL_INTERVAL_MS, 5000));
+      }
     }
 
     return () => {

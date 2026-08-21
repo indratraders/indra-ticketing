@@ -80,6 +80,16 @@ npm start
 
 If the app is on a **different machine** than SQL Server, set `DB_SERVER` to that server’s LAN IP or host name and open TCP 1433 between them.
 
+## Vercel
+
+Vercel cannot see the office SQL Server. The live site must use **Vercel KV** (Redis) so tokens are not lost between requests:
+
+1. Vercel Dashboard → **Storage** → **Create Database** → **KV**
+2. Connect it to the `indra-ticketing` project (Production)
+3. Redeploy
+
+`/api/health` should then show `"mode":"durable"`. Without KV, each serverless instance has its own queue, so tokens appear, disappear, and repeat.
+
 ## Architecture
 
 ```

@@ -15,17 +15,37 @@ function hasSqlCredentials(): boolean {
   );
 }
 
+function isPrivateOrLocalDbHost(server: string): boolean {
+  const host = server.trim().toLowerCase();
+  if (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "." ||
+    host === "(local)"
+  ) {
+    return true;
+  }
+  if (host.startsWith("192.168.") || host.startsWith("10.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+  return false;
+}
+
 /**
- * SQL Server is used when:
- * - NEXT_PUBLIC_ENABLE_DEMO_MODE=false, or
- * - demo mode is unset and DB_* credentials are present
- *
- * Set NEXT_PUBLIC_ENABLE_DEMO_MODE=true to force the in-memory store.
+ * SQL Server is used when DB_* credentials are present and reachable.
+ * Vercel cannot reach office/LAN SQL Server, so it stays on the durable store.
+ * Set NEXT_PUBLIC_ENABLE_DEMO_MODE=true to force the in-memory/KV store.
  */
 export function isSqlServerEnabled(): boolean {
   if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true") return false;
-  if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "false") return true;
-  return hasSqlCredentials();
+  if (!hasSqlCredentials()) return false;
+  if (
+    process.env.VERCEL &&
+    isPrivateOrLocalDbHost(process.env.DB_SERVER || "")
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function getSqlConfig(): SqlConfig {

@@ -128,6 +128,7 @@ export const tokenService = {
       activeCount: activeTokens.length,
       maxConcurrentActive,
       recallVersion: tokenRepository.getRecallVersion(),
+      version: tokenRepository.getStoreVersion(),
       updatedAt: nowISO(),
     };
   },
