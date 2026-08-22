@@ -26,10 +26,23 @@ export function isSupabaseRestEnabled(): boolean {
   return supabaseCreds() !== null;
 }
 
-export async function supabaseRest<T = unknown>(
+/** Build a PostgREST query string from key/value pairs (skips undefined/null). */
+export function supabaseQuery(
+  params: Record<string, string | number | boolean | null | undefined>
+): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null) continue;
+    parts.push(`${key}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.join("&");
+}
+
+/** Raw Response — use when you need status/headers or empty representation checks. */
+export async function supabaseRestRaw(
   path: string,
   init: RequestInit & { prefer?: string } = {}
-): Promise<T> {
+): Promise<Response> {
   const creds = supabaseCreds();
   if (!creds) {
     throw new Error("Supabase REST is not configured");
@@ -37,14 +50,23 @@ export async function supabaseRest<T = unknown>(
   const headers = new Headers(init.headers);
   headers.set("apikey", creds.key);
   headers.set("Authorization", `Bearer ${creds.key}`);
-  headers.set("Content-Type", "application/json");
+  if (init.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   if (init.prefer) headers.set("Prefer", init.prefer);
 
-  const res = await fetch(`${creds.url}/rest/v1/${path.replace(/^\//, "")}`, {
+  return fetch(`${creds.url}/rest/v1/${path.replace(/^\//, "")}`, {
     ...init,
     headers,
     cache: "no-store",
   });
+}
+
+export async function supabaseRest<T = unknown>(
+  path: string,
+  init: RequestInit & { prefer?: string } = {}
+): Promise<T> {
+  const res = await supabaseRestRaw(path, init);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");

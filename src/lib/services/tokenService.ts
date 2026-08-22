@@ -102,17 +102,33 @@ export const tokenService = {
   async getQueueSnapshot(counterId?: string | null): Promise<QueueSnapshot> {
     const settings = await settingsRepository.get();
     const maxConcurrentActive = await resolveMaxConcurrent();
-    const activeTokens = await tokenRepository.listAllActiveTokens();
-    const currentToken = activeTokens[0] ?? null;
-    const waitingTokens = await tokenRepository.listByStatus("WAITING");
-    const completedTokens = (await tokenRepository.listByStatus("COMPLETED"))
+    // One fetch for today — filter in memory (much faster on Vercel/Supabase)
+    const today = await tokenRepository.listByBusinessDate();
+    const activeTokens = today.filter(
+      (t) => t.status === "CALLED" || t.status === "IN_PROGRESS"
+    );
+    const waitingTokens = today.filter((t) => t.status === "WAITING");
+    const completedTokens = today
+      .filter((t) => t.status === "COMPLETED")
       .slice()
       .reverse();
-    const skippedTokens = await tokenRepository.listByStatus("SKIPPED");
-    const cancelledTokens = await tokenRepository.listByStatus("CANCELLED");
-    const previousToken = await tokenRepository.getPreviousCompletedOrActive(
-      currentToken?.id
-    );
+    const skippedTokens = today.filter((t) => t.status === "SKIPPED");
+    const cancelledTokens = today.filter((t) => t.status === "CANCELLED");
+    const currentToken = activeTokens[0] ?? null;
+    const previousToken =
+      today
+        .filter(
+          (t) =>
+            t.id !== currentToken?.id &&
+            (t.status === "COMPLETED" ||
+              t.status === "CALLED" ||
+              t.status === "IN_PROGRESS")
+        )
+        .sort((a, b) => {
+          const aTime = a.calledAt || a.completedAt || a.issuedAt;
+          const bTime = b.calledAt || b.completedAt || b.issuedAt;
+          return bTime.localeCompare(aTime);
+        })[0] ?? null;
     const upcomingTokens = waitingTokens.slice(0, settings.upcomingTokensCount);
 
     return {

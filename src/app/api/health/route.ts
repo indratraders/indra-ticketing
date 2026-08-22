@@ -4,8 +4,8 @@ import {
   isDurableStoreEnabled,
 } from "@/lib/db/durable-store";
 import { isPostgresEnabled } from "@/lib/db/postgres";
+import { isSupabaseRestEnabled, supabaseRest } from "@/lib/db/supabase-rest";
 import { getSqlPool, isSqlServerEnabled } from "@/lib/db/sqlserver";
-import { pgQueryOne } from "@/lib/db/postgres";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +18,14 @@ export async function GET() {
           DB_NAME() AS databaseName,
           (SELECT COUNT(*) FROM dbo.users) AS userCount,
           (SELECT COUNT(*) FROM dbo.vehicles) AS vehicleCount,
+          (SELECT COUNT(*) FROM dbo.tokens) AS tokenCount,
           (SELECT COUNT(*) FROM dbo.settings) AS settingsCount
       `);
       const row = result.recordset[0] as {
         databaseName: string;
         userCount: number;
         vehicleCount: number;
+        tokenCount: number;
         settingsCount: number;
       };
       return NextResponse.json({
@@ -33,6 +35,7 @@ export async function GET() {
         database: row.databaseName,
         userCount: row.userCount,
         vehicleCount: row.vehicleCount,
+        tokenCount: row.tokenCount,
         settingsReady: row.settingsCount > 0,
       });
     } catch (error) {
@@ -42,8 +45,6 @@ export async function GET() {
         {
           ok: false,
           mode: "sqlserver",
-          server: process.env.DB_SERVER ?? null,
-          database: process.env.DB_NAME ?? null,
           error: message,
         },
         { status: 503 }
@@ -51,33 +52,41 @@ export async function GET() {
     }
   }
 
-  if (isPostgresEnabled()) {
+  if (isPostgresEnabled() || isSupabaseRestEnabled()) {
     try {
-      const vehicles = await pgQueryOne<{ n: string }>(
-        `SELECT COUNT(*)::text AS n FROM public.vehicles WHERE active = true`
-      );
-      const users = await pgQueryOne<{ n: string }>(
-        `SELECT COUNT(*)::text AS n FROM public.users`
-      );
-      const settings = await pgQueryOne<{ n: string }>(
-        `SELECT COUNT(*)::text AS n FROM public.settings`
-      );
+      // Prefer REST health checks — avoid pg pool on the hot path
+      if (isSupabaseRestEnabled()) {
+        const [vehicles, users, tokens, settings] = await Promise.all([
+          supabaseRest<unknown[]>("vehicles?active=eq.true&select=id"),
+          supabaseRest<unknown[]>("users?select=id"),
+          supabaseRest<unknown[]>("tokens?select=id"),
+          supabaseRest<unknown[]>(
+            "settings?id=eq.settings_default&select=id"
+          ),
+        ]);
+        return NextResponse.json({
+          ok: true,
+          mode: "postgres",
+          backend: "supabase-rest",
+          database: process.env.POSTGRES_DATABASE || "postgres",
+          userCount: users?.length ?? 0,
+          vehicleCount: vehicles?.length ?? 0,
+          tokenCount: tokens?.length ?? 0,
+          settingsReady: (settings?.length ?? 0) > 0,
+          message:
+            "Supabase REST is active. Tokens and customers persist in relational tables.",
+        });
+      }
+
       return NextResponse.json({
         ok: true,
         mode: "postgres",
         backend: "supabase",
-        database: process.env.POSTGRES_DATABASE || "postgres",
-        userCount: Number(users?.n || 0),
-        vehicleCount: Number(vehicles?.n || 0),
-        settingsReady: Number(settings?.n || 0) > 0,
-        message:
-          Number(vehicles?.n || 0) > 0
-            ? "Supabase relational tables are ready (vehicles, users, tokens)."
-            : "Supabase connected but vehicles table is empty. Run scripts/setup-supabase.sql.",
+        message: "Postgres enabled",
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Postgres connection failed";
+        error instanceof Error ? error.message : "Supabase connection failed";
       return NextResponse.json(
         {
           ok: false,
@@ -99,7 +108,7 @@ export async function GET() {
     backend,
     durable,
     message: durable
-      ? "JSON durable store (legacy). Prefer running setup-supabase.sql for real tables."
+      ? "JSON durable store (legacy)."
       : "In-memory demo store.",
   });
 }

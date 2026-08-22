@@ -220,3 +220,30 @@ CREATE POLICY "vehicles_select" ON public.vehicles
 DROP POLICY IF EXISTS "vehicles_write" ON public.vehicles;
 CREATE POLICY "vehicles_write" ON public.vehicles
   FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- Tokens / customers / settings readable+writable for the app key
+ALTER TABLE public.tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.token_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.counters ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "tokens_all" ON public.tokens;
+CREATE POLICY "tokens_all" ON public.tokens
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "customers_all" ON public.customers;
+CREATE POLICY "customers_all" ON public.customers
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "settings_all" ON public.settings;
+CREATE POLICY "settings_all" ON public.settings
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "token_events_all" ON public.token_events;
+CREATE POLICY "token_events_all" ON public.token_events
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "users_all" ON public.users;
+CREATE POLICY "users_all" ON public.users
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "counters_all" ON public.counters;
+CREATE POLICY "counters_all" ON public.counters
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
