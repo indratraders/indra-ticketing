@@ -78,6 +78,8 @@ export const customerRepository = {
           contactNumber: input.contactNumber,
           nic: input.nic || null,
           email: input.email || null,
+          createdAt: now,
+          updatedAt: now,
         }),
       });
     } else {

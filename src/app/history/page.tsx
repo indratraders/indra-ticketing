@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Inbox, Search } from "lucide-react";
 import { DashboardShellClient } from "@/components/layout/dashboard-shell-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TOKEN_STATUS_LABELS } from "@/lib/constants";
-import { formatSriLankaDateTime } from "@/lib/utils/date";
+import { formatSriLankaDateTime, getBusinessDate } from "@/lib/utils/date";
 import { vehicleDisplayName } from "@/lib/utils";
-import { getBusinessDate } from "@/lib/utils/date";
 import type { TokenStatus, TokenWithRelations } from "@/types";
-import { Inbox } from "lucide-react";
 
 export default function HistoryPage() {
   return (
@@ -33,31 +31,42 @@ export default function HistoryPage() {
 }
 
 function HistoryView() {
-  const [date, setDate] = useState(getBusinessDate());
+  const [date, setDate] = useState<string>("ALL");
   const [status, setStatus] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState<TokenWithRelations[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams({
-      date,
       page: String(page),
       pageSize: "15",
     });
+    if (date !== "ALL") params.set("date", date);
     if (status !== "ALL") params.set("status", status);
     if (search.trim()) params.set("search", search.trim());
 
     setLoading(true);
-    void fetch(`/api/history?${params}`)
+    setError(null);
+    void fetch(`/api/history?${params}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((json) => {
         if (json.success) {
           setItems(json.data.items);
           setTotal(json.data.total);
+        } else {
+          setItems([]);
+          setTotal(0);
+          setError(json.error || "Failed to load history");
         }
+      })
+      .catch(() => {
+        setError("Failed to load history");
+        setItems([]);
+        setTotal(0);
       })
       .finally(() => setLoading(false));
   }, [date, status, search, page]);
@@ -78,14 +87,38 @@ function HistoryView() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => {
-              setPage(1);
-              setDate(e.target.value);
-            }}
-          />
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[var(--muted)]">
+              Business date
+            </label>
+            <div className="flex gap-2">
+              <Select
+                value={date === "ALL" ? "ALL" : "DATE"}
+                onValueChange={(v) => {
+                  setPage(1);
+                  setDate(v === "ALL" ? "ALL" : getBusinessDate());
+                }}
+              >
+                <SelectTrigger className="w-[7.5rem]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All dates</SelectItem>
+                  <SelectItem value="DATE">Pick day</SelectItem>
+                </SelectContent>
+              </Select>
+              {date !== "ALL" ? (
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => {
+                    setPage(1);
+                    setDate(e.target.value || getBusinessDate());
+                  }}
+                />
+              ) : null}
+            </div>
+          </div>
           <Select
             value={status}
             onValueChange={(v) => {
@@ -124,11 +157,17 @@ function HistoryView() {
         <CardContent className="pt-6">
           {loading ? (
             <PageLoader label="Loading history..." />
+          ) : error ? (
+            <EmptyState
+              icon={Inbox}
+              title="Could not load history"
+              description={error}
+            />
           ) : items.length === 0 ? (
             <EmptyState
               icon={Inbox}
               title="No token history found"
-              description="Try a different date or clear your search filters."
+              description="Issue a token first, or clear filters. Data is stored in Supabase."
             />
           ) : (
             <>

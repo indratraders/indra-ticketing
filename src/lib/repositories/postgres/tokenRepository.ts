@@ -25,9 +25,6 @@ import {
 
 const SETTINGS_ID = "settings_default";
 
-const ENRICH_SELECT =
-  "*,customer:customers!customerId(*),vehicle:vehicles!vehicleId(*),counter:counters!counterId(*),issuer:users!issuedBy(*),caller:users!calledBy(*)";
-
 const LIST_CACHE_TTL_MS = 2000;
 let listByDateCache: {
   date: string;
@@ -75,113 +72,95 @@ function eq(id: string): string {
   return encodeURIComponent(id);
 }
 
-/** Map PostgREST embed shape (nested objects), not flat SQL join aliases. */
-function mapEmbeddedToken(row: Record<string, unknown>): TokenWithRelations {
-  const token = mapToken(row);
-  const customer = row.customer as Record<string, unknown> | null | undefined;
-  const vehicle = row.vehicle as Record<string, unknown> | null | undefined;
-  if (!customer?.id || !vehicle?.id) {
-    throw new Error("Token relations missing");
-  }
-  const counter = row.counter as Record<string, unknown> | null | undefined;
-  const issuer = row.issuer as Record<string, unknown> | null | undefined;
-  const caller = row.caller as Record<string, unknown> | null | undefined;
-
-  return {
-    ...token,
-    customer: mapCustomer(customer),
-    vehicle: mapVehicle(vehicle),
-    counter: counter?.id ? mapCounter(counter) : null,
-    issuer: mapSafeUser(issuer),
-    caller: mapSafeUser(caller),
-  };
-}
-
-async function fetchRelatedForToken(
-  token: Token
-): Promise<TokenWithRelations> {
-  const [customers, vehicles, counters, issuers, callers] = await Promise.all([
-    supabaseRest<Record<string, unknown>[]>(
-      `customers?id=eq.${eq(token.customerId)}&select=*&limit=1`
-    ),
-    supabaseRest<Record<string, unknown>[]>(
-      `vehicles?id=eq.${eq(token.vehicleId)}&select=*&limit=1`
-    ),
-    token.counterId
-      ? supabaseRest<Record<string, unknown>[]>(
-          `counters?id=eq.${eq(token.counterId)}&select=*&limit=1`
-        )
-      : Promise.resolve([] as Record<string, unknown>[]),
-    supabaseRest<Record<string, unknown>[]>(
-      `users?id=eq.${eq(token.issuedBy)}&select=id,email,name,role,active&limit=1`
-    ),
-    token.calledBy
-      ? supabaseRest<Record<string, unknown>[]>(
-          `users?id=eq.${eq(token.calledBy)}&select=id,email,name,role,active&limit=1`
-        )
-      : Promise.resolve([] as Record<string, unknown>[]),
-  ]);
-
-  const customer = customers?.[0];
-  const vehicle = vehicles?.[0];
-  if (!customer || !vehicle) throw new Error("Token relations missing");
-
-  return {
-    ...token,
-    customer: mapCustomer(customer),
-    vehicle: mapVehicle(vehicle),
-    counter: counters?.[0] ? mapCounter(counters[0]) : null,
-    issuer: mapSafeUser(issuers?.[0]),
-    caller: mapSafeUser(callers?.[0]),
-  };
-}
-
 async function enrichRows(
   rows: Record<string, unknown>[]
 ): Promise<TokenWithRelations[]> {
   if (!rows.length) return [];
-  if ("customer" in rows[0]) {
-    try {
-      return rows.map(mapEmbeddedToken);
-    } catch {
-      // embed incomplete — fall through
-    }
+
+  const tokens = rows.map(mapToken);
+  const customerIds = [...new Set(tokens.map((t) => t.customerId))];
+  const vehicleIds = [...new Set(tokens.map((t) => t.vehicleId))];
+  const counterIds = [
+    ...new Set(tokens.map((t) => t.counterId).filter(Boolean) as string[]),
+  ];
+  const userIds = [
+    ...new Set(
+      tokens.flatMap((t) =>
+        [t.issuedBy, t.calledBy].filter(Boolean) as string[]
+      )
+    ),
+  ];
+
+  const inList = (ids: string[]) => ids.map(eq).join(",");
+
+  const [customers, vehicles, counters, users] = await Promise.all([
+    customerIds.length
+      ? supabaseRest<Record<string, unknown>[]>(
+          `customers?id=in.(${inList(customerIds)})&select=*`
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
+    vehicleIds.length
+      ? supabaseRest<Record<string, unknown>[]>(
+          `vehicles?id=in.(${inList(vehicleIds)})&select=*`
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
+    counterIds.length
+      ? supabaseRest<Record<string, unknown>[]>(
+          `counters?id=in.(${inList(counterIds)})&select=*`
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
+    userIds.length
+      ? supabaseRest<Record<string, unknown>[]>(
+          `users?id=in.(${inList(userIds)})&select=id,email,name,role,active`
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
+  ]);
+
+  const customerMap = new Map(
+    (customers || []).map((c) => [String(c.id), mapCustomer(c)])
+  );
+  const vehicleMap = new Map(
+    (vehicles || []).map((v) => [String(v.id), mapVehicle(v)])
+  );
+  const counterMap = new Map(
+    (counters || []).map((c) => [String(c.id), mapCounter(c)])
+  );
+  const userMap = new Map(
+    (users || []).map((u) => [String(u.id), mapSafeUser(u)])
+  );
+
+  const out: TokenWithRelations[] = [];
+  for (const token of tokens) {
+    const customer = customerMap.get(token.customerId);
+    const vehicle = vehicleMap.get(token.vehicleId);
+    if (!customer || !vehicle) continue;
+    out.push({
+      ...token,
+      customer,
+      vehicle,
+      counter: token.counterId ? counterMap.get(token.counterId) ?? null : null,
+      issuer: userMap.get(token.issuedBy) ?? null,
+      caller: token.calledBy ? userMap.get(token.calledBy) ?? null : null,
+    });
   }
-  return Promise.all(rows.map((r) => fetchRelatedForToken(mapToken(r))));
+  return out;
 }
 
 async function enrichById(tokenId: string): Promise<TokenWithRelations | null> {
-  try {
-    const rows = await supabaseRest<Record<string, unknown>[]>(
-      `tokens?id=eq.${eq(tokenId)}&select=${ENRICH_SELECT}&limit=1`
-    );
-    if (!rows?.[0]) return null;
-    try {
-      return mapEmbeddedToken(rows[0]);
-    } catch {
-      return fetchRelatedForToken(mapToken(rows[0]));
-    }
-  } catch {
-    const rows = await supabaseRest<Record<string, unknown>[]>(
-      `tokens?id=eq.${eq(tokenId)}&select=*&limit=1`
-    );
-    if (!rows?.[0]) return null;
-    return fetchRelatedForToken(mapToken(rows[0]));
-  }
+  const rows = await supabaseRest<Record<string, unknown>[]>(
+    `tokens?id=eq.${eq(tokenId)}&select=*&limit=1`
+  );
+  if (!rows?.[0]) return null;
+  const [enriched] = await enrichRows(rows);
+  return enriched ?? null;
 }
 
 async function listEnriched(query: string): Promise<TokenWithRelations[]> {
-  try {
-    const rows = await supabaseRest<Record<string, unknown>[]>(
-      `tokens?${query}&select=${ENRICH_SELECT}`
-    );
-    return enrichRows(rows || []);
-  } catch {
-    const rows = await supabaseRest<Record<string, unknown>[]>(
-      `tokens?${query}&select=*`
-    );
-    return enrichRows(rows || []);
-  }
+  // Plain select — avoids a failed embed round-trip that doubled latency
+  const rows = await supabaseRest<Record<string, unknown>[]>(
+    `tokens?${query}&select=*`
+  );
+  return enrichRows(rows || []);
 }
 
 async function insertEvent(input: {
@@ -392,7 +371,7 @@ export const tokenRepository = {
     page?: number;
     pageSize?: number;
   }): Promise<{ items: TokenWithRelations[]; total: number }> {
-    const parts: string[] = ["order=issuedAt.desc"];
+    const parts: string[] = ["order=issuedAt.desc", "limit=500"];
     if (filters.businessDate) {
       parts.push(`businessDate=eq.${eq(filters.businessDate)}`);
     }
