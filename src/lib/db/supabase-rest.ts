@@ -1,6 +1,54 @@
 /**
  * Supabase PostgREST helper — preferred on Vercel to avoid pg session-pool limits.
  */
+
+function projectRefFromUrl(url: string): string | null {
+  try {
+    const host = new URL(url).hostname; // <ref>.supabase.co
+    const ref = host.split(".")[0];
+    return ref || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Decode JWT payload (no verify) — used only to skip keys for a different project. */
+function jwtProjectRef(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const json = Buffer.from(parts[1], "base64url").toString("utf8");
+    const payload = JSON.parse(json) as { ref?: string; role?: string };
+    return typeof payload.ref === "string" ? payload.ref : null;
+  } catch {
+    return null;
+  }
+}
+
+function pickKey(url: string): string | null {
+  const expectedRef = projectRefFromUrl(url);
+  const candidates = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SECRET_KEY,
+    process.env.SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  ];
+
+  for (const raw of candidates) {
+    const key = (raw || "").trim();
+    if (!key) continue;
+    // Legacy JWTs include project ref — skip leftovers from a deleted project
+    if (key.startsWith("eyJ") && expectedRef) {
+      const keyRef = jwtProjectRef(key);
+      if (keyRef && keyRef !== expectedRef) continue;
+    }
+    return key;
+  }
+  return null;
+}
+
 function supabaseCreds(): { url: string; key: string } | null {
   const url = (
     process.env.SUPABASE_URL ||
@@ -9,16 +57,9 @@ function supabaseCreds(): { url: string; key: string } | null {
   )
     .trim()
     .replace(/\/$/, "");
-  const key = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    ""
-  ).trim();
-  if (!url || !key) return null;
+  if (!url) return null;
+  const key = pickKey(url);
+  if (!key) return null;
   return { url, key };
 }
 
