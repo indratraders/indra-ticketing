@@ -11,7 +11,7 @@ import { Spinner } from "@/components/ui/feedback";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("krish@indra.local");
+  const [email, setEmail] = useState("samith@indra.local");
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [loading, setLoading] = useState(false);
 
@@ -89,13 +89,13 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
-          <p className="font-semibold">COLOMBO FLOOR LOGINS</p>
+          <p className="font-semibold">MATARA FLOOR LOGINS</p>
           <ul className="mt-2 space-y-1">
-            <li>krish@indra.local</li>
-            <li>umesh@indra.local</li>
-            <li>imithiyaz@indra.local</li>
-            <li>buwaneka@indra.local</li>
-            <li>omith@indra.local</li>
+            <li>samith@indra.local — Samith</li>
+            <li>chinthaka@indra.local — Chinthaka</li>
+            <li>ahamed@indra.local — Ahamed</li>
+            <li>ahinsa@indra.local — Ahinsa</li>
+            <li>omith@indra.local — Omith</li>
             <li>admin@indra.local — admin</li>
             <li>Password: {DEMO_PASSWORD}</li>
           </ul>

@@ -137,18 +137,17 @@ CREATE TABLE IF NOT EXISTS public.app_store (
 );
 
 -- =============================================================================
--- Seed: Colombo fleet + officers (password for all users: demo1234)
+-- Seed: Matara fleet + officers (password for all users: demo1234)
 -- =============================================================================
 
 INSERT INTO public.users (id, email, name, "passwordHash", role, active)
 VALUES
   ('user_admin', 'admin@indra.local', 'System Admin', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'ADMIN', true),
-  ('user_krish', 'krish@indra.local', 'Krish', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
-  ('user_umesh', 'umesh@indra.local', 'Umesh', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
-  ('user_imithiyaz', 'imithiyaz@indra.local', 'Imithiyaz', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
-  ('user_buwaneka', 'buwaneka@indra.local', 'Buwaneka', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
+  ('user_samith', 'samith@indra.local', 'Samith', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
+  ('user_chinthaka', 'chinthaka@indra.local', 'Chinthaka', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
+  ('user_ahamed', 'ahamed@indra.local', 'Ahamed', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
+  ('user_ahinsa', 'ahinsa@indra.local', 'Ahinsa', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
   ('user_omith', 'omith@indra.local', 'Omith', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
-  ('user_token', 'token@indra.local', 'Token Officer', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'TOKEN_OFFICER', true),
   ('user_queue', 'queue@indra.local', 'Queue Officer', '$2b$10$BywP.3d07GPhmnh.1adVzOGfiqBrwz63lsUPYogHebekdh6Uswhay', 'QUEUE_OFFICER', true)
 ON CONFLICT (id) DO UPDATE SET
   email = EXCLUDED.email,
@@ -172,10 +171,10 @@ INSERT INTO public.vehicles (id, brand, model, "registrationNumber", status, act
 VALUES
   ('veh_raptor', 'Ford', 'Raptor', NULL, 'AVAILABLE', true),
   ('veh_vezel', 'Honda', 'Vezel', NULL, 'AVAILABLE', true),
-  ('veh_taisor', 'Toyota', 'Taisor', NULL, 'AVAILABLE', true),
-  ('veh_wagonr', 'Suzuki', 'Wagon R', NULL, 'AVAILABLE', true),
   ('veh_raize', 'Toyota', 'Raize', NULL, 'AVAILABLE', true),
-  ('veh_dayz', 'Nissan', 'Dayz', NULL, 'AVAILABLE', true)
+  ('veh_yaris', 'Toyota', 'Yaris', NULL, 'AVAILABLE', true),
+  ('veh_dayz', 'Nissan', 'Dayz', NULL, 'AVAILABLE', true),
+  ('veh_wagonr', 'Suzuki', 'Wagon R', NULL, 'AVAILABLE', true)
 ON CONFLICT (id) DO UPDATE SET
   brand = EXCLUDED.brand,
   model = EXCLUDED.model,
@@ -183,15 +182,12 @@ ON CONFLICT (id) DO UPDATE SET
   active = true,
   "updatedAt" = now();
 
--- Rename legacy Kia Sonet → Suzuki Wagon R (keep old id for existing tokens)
+-- Deactivate non-Matara fleet cars when free
 UPDATE public.vehicles
-SET brand = 'Suzuki', model = 'Wagon R', active = true, status = 'AVAILABLE', "updatedAt" = now()
-WHERE id = 'veh_sonet';
-
--- Prefer the new id going forward; deactivate duplicate if both exist
-UPDATE public.vehicles SET active = false, "updatedAt" = now()
-WHERE id = 'veh_sonet'
-  AND EXISTS (SELECT 1 FROM public.vehicles WHERE id = 'veh_wagonr');
+SET active = false, "updatedAt" = now()
+WHERE active = true
+  AND status = 'AVAILABLE'
+  AND id NOT IN ('veh_raptor', 'veh_vezel', 'veh_raize', 'veh_yaris', 'veh_dayz', 'veh_wagonr');
 
 INSERT INTO public.settings (
   id, "companyName", "tokenPrefix", "startingTokenNumber", "maxTokenNumber",
@@ -201,7 +197,7 @@ INSERT INTO public.settings (
   "lastQueueSequence", "lastCustomerCodeSequence"
 ) VALUES (
   'settings_default',
-  'Indra Traders (PVT) LTD — Colombo',
+  'Indra Traders (PVT) LTD — Matara',
   '', 1, 50, 'C', 'counter_01',
   true, true, 'LARGE', 'FIFO', false,
   6, true, 'Asia/Colombo', 0, 0

@@ -16,10 +16,10 @@ declare global {
 const FLEET: Array<[string, string, string]> = [
   ["veh_raptor", "Ford", "Raptor"],
   ["veh_vezel", "Honda", "Vezel"],
-  ["veh_taisor", "Toyota", "Taisor"],
-  ["veh_wagonr", "Suzuki", "Wagon R"],
   ["veh_raize", "Toyota", "Raize"],
+  ["veh_yaris", "Toyota", "Yaris"],
   ["veh_dayz", "Nissan", "Dayz"],
+  ["veh_wagonr", "Suzuki", "Wagon R"],
 ];
 
 function isFleetVehicle(v: Vehicle): boolean {
