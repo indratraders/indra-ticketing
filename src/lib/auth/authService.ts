@@ -17,12 +17,15 @@ export const authService = {
       throw new AuthError(parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const user = await userRepository.findByEmail(parsed.data.email);
+    const user = await userRepository.findByEmail(parsed.data.email.trim());
     if (!user || !user.active) {
       throw new AuthError("Invalid email or password");
     }
 
-    const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+    const valid = await bcrypt.compare(
+      parsed.data.password.trim(),
+      user.passwordHash
+    );
     if (!valid) {
       throw new AuthError("Invalid email or password");
     }
