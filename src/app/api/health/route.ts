@@ -87,13 +87,28 @@ export async function GET() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Supabase connection failed";
+      const supabaseUrl =
+        process.env.SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        "";
       return NextResponse.json(
         {
           ok: false,
           mode: "postgres",
           backend: "supabase",
           error: message,
-          hint: "Run scripts/setup-supabase.sql in the Supabase SQL editor.",
+          supabaseHost: (() => {
+            try {
+              return supabaseUrl ? new URL(supabaseUrl).host : null;
+            } catch {
+              return supabaseUrl || null;
+            }
+          })(),
+          hint:
+            "Supabase is unreachable (project paused/deleted or bad SUPABASE_URL). " +
+            "Create/restore the project in supabase.com, update Vercel env " +
+            "(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, POSTGRES_URL), " +
+            "run scripts/setup-supabase.sql, then redeploy.",
         },
         { status: 503 }
       );

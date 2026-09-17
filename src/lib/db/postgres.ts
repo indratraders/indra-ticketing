@@ -15,11 +15,32 @@ function postgresUrl(): string | null {
     "";
   const url = raw.trim();
   if (!url) return null;
-  return url
+  const normalized = url
     .replace(/([?&])sslmode=[^&]*/gi, "$1sslmode=require")
     .replace(/([?&])channel_binding=[^&]*/gi, "$1")
     .replace(/\?&/, "?")
     .replace(/[?&]$/, "");
+
+  // Reject pooler usernames mistaken for hosts (postgres.<ref> with no domain)
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname;
+    if (
+      host.startsWith("postgres.") &&
+      !host.includes("supabase") &&
+      !host.includes(".")
+    ) {
+      return null;
+    }
+    // postgres.xxxxx alone (no TLD) — invalid DNS
+    if (/^postgres\.[a-z0-9]+$/i.test(host)) {
+      return null;
+    }
+  } catch {
+    // leave as-is; pool will fail with a clearer path elsewhere
+  }
+
+  return normalized;
 }
 
 /**

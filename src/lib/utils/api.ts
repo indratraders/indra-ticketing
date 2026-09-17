@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AuthError } from "@/lib/auth/session";
+import { friendlyDbError, isDbConnectivityError } from "@/lib/db/errors";
 
 const NO_STORE = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -23,6 +24,12 @@ export function jsonError(error: unknown, fallback = "Something went wrong") {
     return NextResponse.json(
       { success: false, error: error.message },
       { status: error.status, headers: NO_STORE }
+    );
+  }
+  if (isDbConnectivityError(error)) {
+    return NextResponse.json(
+      { success: false, error: friendlyDbError(error) },
+      { status: 503, headers: NO_STORE }
     );
   }
   const message = error instanceof Error ? error.message : fallback;
